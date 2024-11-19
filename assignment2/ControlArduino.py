@@ -39,7 +39,7 @@ def on_press(key):
             if key.char == 'w':
                   arduino.write(b'2')
                   print("moving forward")
-            elif key.char == 'x':
+            elif key.char == 's':
                   arduino.write(b'3')
                   print('moving backward')
             elif key.char == 'a':
@@ -48,7 +48,7 @@ def on_press(key):
             elif key.char == 'd':
                   arduino.write(b'5')
                   print("turning right")
-            elif key.char == 's':
+            elif key.char == 'q':
                   arduino.write(b'0')
                   print('robot stopped')
         except AttributeError:
