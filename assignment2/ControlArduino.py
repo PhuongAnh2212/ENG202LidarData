@@ -5,11 +5,12 @@ import threading
 from pynput import keyboard 
 import pandas as pd 
 from matplotlib import pyplot as plt 
+import os
 
 with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
         sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting = csv.QUOTE_MINIMAL)
         sensor_writer.writerow(["x","y", "timestamp"])
-arduino = serial.Serial(port = '/dev/ttyUSB0', baudrate = 115200, timeout = 1)
+arduino = serial.Serial(port = '/dev/cu.usbserial-130', baudrate = 115200, timeout = 1)
 time.sleep(2)
 
 def extract_data(data):
@@ -39,7 +40,7 @@ def on_press(key):
             if key.char == 'w':
                   arduino.write(b'2')
                   print("moving forward")
-            elif key.char == 's':
+            elif key.char == 'x':
                   arduino.write(b'3')
                   print('moving backward')
             elif key.char == 'a':
@@ -48,7 +49,7 @@ def on_press(key):
             elif key.char == 'd':
                   arduino.write(b'5')
                   print("turning right")
-            elif key.char == 'q':
+            elif key.char == 's':
                   arduino.write(b'0')
                   print('robot stopped')
         except AttributeError:
@@ -58,6 +59,7 @@ def on_release(key):
       if key == keyboard.Key.esc: 
             print("Existing..")
             return False 
+
 
 def plot_data():
     try:
@@ -80,9 +82,13 @@ def plot_data():
         plt.grid(True)
         plt.axis('equal') 
         plt.tight_layout()
+
+        # Define the path where the plot will be saved
+        plot_filename = os.path.join(os.getcwd(), "robot_path_plot.png")
         
-        # Show the plot
-        plt.show()
+        # Save the plot to the file (no display)
+        plt.savefig(plot_filename)
+        print(f"Plot saved as {plot_filename}")
 
     except FileNotFoundError:
         print("SensorData.csv not found.")
