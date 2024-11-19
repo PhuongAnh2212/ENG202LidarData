@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
         sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting = csv.QUOTE_MINIMAL)
         sensor_writer.writerow(["x","y", "timestamp"])
-arduino = serial.Serial(port = '/dev/cu.usbserial-130', baudrate = 115200, timeout = 1)
+arduino = serial.Serial(port = '/dev/ttyUSB0', baudrate = 115200, timeout = 1)
 time.sleep(2)
 
 def extract_data(data):
