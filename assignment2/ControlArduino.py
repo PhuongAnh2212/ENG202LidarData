@@ -29,6 +29,8 @@ def extract_data(data):
 def read_data(): 
     while True: 
         data = arduino.readline().decode('utf-8').strip()
+        print(f"Raw data type: {type(data)}")  # This should print <class 'bytes'>
+
         if data: 
             x, y = extract_data(data)
             if x is not None and y is not None: 
