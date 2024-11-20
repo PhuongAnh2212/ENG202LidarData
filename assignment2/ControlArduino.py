@@ -1,66 +1,68 @@
 import serial
-import time 
-import csv 
-import threading 
-from pynput import keyboard 
-import pandas as pd 
-from matplotlib import pyplot as plt 
+import time
+import csv
+import threading
+import keyboard  # Import the keyboard library
+import pandas as pd
+from matplotlib import pyplot as plt
 import os
 
+# Create CSV file and add headers
 with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
-        sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting = csv.QUOTE_MINIMAL)
-        sensor_writer.writerow(["x","y", "timestamp"])
-arduino = serial.Serial(port = '/dev/cu.usbserial-130', baudrate = 115200, timeout = 1)
+        sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+        sensor_writer.writerow(["x", "y", "timestamp"])
+
+# Initialize Arduino connection (adjust port for Ubuntu)
+arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
 time.sleep(2)
 
+# Function to extract x and y data from Arduino
 def extract_data(data):
     try: 
-        x,y = data.split(",")
-        return float(x),float(y)
+        x, y = data.split(",")
+        return float(x), float(y)
     except ValueError: 
           print("Invalid data received")
           return None, None 
 
-def read_data(): #read data from Arduino and log to CSV
-      while True: 
-            data = arduino.readline().decode('utf-8').strip()
-            if data: 
-                  x,y = extract_data(data)
-                  if x is not None and y is not None: 
-                        timestamp=time.asctime()
-                        print(f"Logged data: x = {x},y={y}, Timestamp={timestamp}")
+# Read data from Arduino and log to CSV
+def read_data(): 
+    while True: 
+        data = arduino.readline().decode('utf-8').strip()
+        if data: 
+            x, y = extract_data(data)
+            if x is not None and y is not None: 
+                timestamp = time.asctime()
+                print(f"Logged data: x = {x}, y = {y}, Timestamp = {timestamp}")
 
-                        with open('SensorData.csv', mode ='a',newline='') as sensor_file:
-                              sensor_writer = csv.writer(sensor_file, delimiter = ',',quotechar='"', quoting = csv.QUOTE_MINIMAL)
-                              sensor_writer.writerow([x,y,timestamp])
+                # Write data to CSV
+                with open('SensorData.csv', mode='a', newline='') as sensor_file:
+                    sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+                    sensor_writer.writerow([x, y, timestamp])
 
+# Define the key press actions using the keyboard library
+def handle_keypress():
+    while True:
+        if keyboard.is_pressed('w'):  # If 'w' is pressed
+            arduino.write(b'2')
+            print("Moving forward")
+        elif keyboard.is_pressed('x'):  # If 'x' is pressed
+            arduino.write(b'3')
+            print('Moving backward')
+        elif keyboard.is_pressed('a'):  # If 'a' is pressed
+            arduino.write(b'4')
+            print("Turning left")
+        elif keyboard.is_pressed('d'):  # If 'd' is pressed
+            arduino.write(b'5')
+            print("Turning right")
+        elif keyboard.is_pressed('s'):  # If 's' is pressed
+            arduino.write(b'0')
+            print('Robot stopped')
+        elif keyboard.is_pressed('esc'):  # If ESC is pressed
+            print("Exiting...")
+            break  # Exit the loop when ESC is pressed
 
-def on_press(key):
-        try: 
-            if key.char == 'w':
-                  arduino.write(b'2')
-                  print("moving forward")
-            elif key.char == 'x':
-                  arduino.write(b'3')
-                  print('moving backward')
-            elif key.char == 'a':
-                  arduino.write(b'4')
-                  print("turning left")
-            elif key.char == 'd':
-                  arduino.write(b'5')
-                  print("turning right")
-            elif key.char == 's':
-                  arduino.write(b'0')
-                  print('robot stopped')
-        except AttributeError:
-              print("ignoring other key...")
-
-def on_release(key):
-      if key == keyboard.Key.esc: 
-            print("Existing..")
-            return False 
-
-
+# Plot data from CSV
 def plot_data():
     try:
         # Load data from the CSV file
@@ -83,10 +85,8 @@ def plot_data():
         plt.axis('equal') 
         plt.tight_layout()
 
-        # Define the path where the plot will be saved
+        # Save the plot to the file
         plot_filename = os.path.join(os.getcwd(), "robot_path_plot.png")
-        
-        # Save the plot to the file (no display)
         plt.savefig(plot_filename)
         print(f"Plot saved as {plot_filename}")
 
@@ -95,14 +95,12 @@ def plot_data():
     except KeyError:
         print("Unexpected CSV format. Ensure columns are labeled 'x' and 'y'.")
 
-
-read_thread = threading.Thread(target= read_data, daemon= True)
+# Start data reading thread
+read_thread = threading.Thread(target=read_data, daemon=True)
 read_thread.start()
-with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-      listener.join()
 
+# Start handling key presses
+handle_keypress()
+
+# After exiting keypress loop, plot the data
 plot_data()
-
-
-
-    
