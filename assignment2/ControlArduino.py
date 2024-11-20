@@ -31,7 +31,7 @@ def read_data():
         # data = arduino.readline().decode('utf-8').strip()
         data = arduino.readline() 
         print(f"Raw data type: {type(data)}")  # This should print <class 'bytes'>
-        data = arduino.readline().decode('utf-8').strip()
+        data = arduino.readline().decode('UTF-8').strip()
             
         if data: 
             x, y = extract_data(data)
