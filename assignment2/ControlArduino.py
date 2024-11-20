@@ -28,9 +28,11 @@ def extract_data(data):
 # Read data from Arduino and log to CSV
 def read_data(): 
     while True: 
-        data = arduino.readline().decode('utf-8').strip()
+        # data = arduino.readline().decode('utf-8').strip()
+        data = arduino.readline() 
         print(f"Raw data type: {type(data)}")  # This should print <class 'bytes'>
-
+        data = arduino.readline().decode('utf-8').strip()
+            
         if data: 
             x, y = extract_data(data)
             if x is not None and y is not None: 
