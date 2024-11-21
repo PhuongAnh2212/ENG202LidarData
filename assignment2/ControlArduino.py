@@ -1,110 +1,205 @@
-import serial
-import time
-import csv
-import threading
-import keyboard  # Import the keyboard library
-import pandas as pd
-from matplotlib import pyplot as plt
-import os
 
-# Create CSV file and add headers
-with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
-        sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        sensor_writer.writerow(["x", "y", "timestamp"])
+// Motor control pins
+const int enL = 7;   // PWM pin for left motor
+const int inL1 = 8;  // Motor direction pin 1 for left motor
+const int inL2 = 9;  // Motor direction pin 2 for left motor
+const int enR = 12;  // PWM pin for right motor
+const int inR1 = 10; // Motor direction pin 1 for right motor
+const int inR2 = 11; // Motor direction pin 2 for right motor
 
-# Initialize Arduino connection (adjust port for Ubuntu)
-arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
-time.sleep(2)
+// Encoder pins
+const int enLA = 2;  // Encoder A pin for left motor
+const int enLB = 3;  // Encoder B pin for left motor
+const int enRA = 18; // Encoder A pin for right motor
+const int enRB = 19; // Encoder B pin for right motor
 
-# Function to extract x and y data from Arduino
-def extract_data(data):
-    try: 
-        x, y = data.split(",")
-        return float(x), float(y)
-    except ValueError: 
-          print("Invalid data received")
-          return None, None 
+// Control constants
+const float d = 0.189;    // Distance between wheels (meters)
+const float r = 0.0225; // Radius of the wheels (meters)
+const float T = 1.2;      // Time step (seconds)
+const float h = 0.21;     // Offset in angle calculation
 
-# Read data from Arduino and log to CSV
-def read_data(): 
-    while True: 
-        # data = arduino.readline().decode('utf-8').strip()
-        data = arduino.readline() 
-        print(f"Raw data type: {type(data)}")  # This should print <class 'bytes'>
-        data = arduino.readline().decode('UTF-8').strip()
-            
-        if data: 
-            x, y = extract_data(data)
-            if x is not None and y is not None: 
-                timestamp = time.asctime()
-                print(f"Logged data: x = {x}, y = {y}, Timestamp = {timestamp}")
+// Encoder constantss
+const int encoderCountsPerRevolution = 350; // 1:50 encoder with 7 pulses per revolution
+const float wheelDiameter = 0.0225*2; // Diameter of the wheel in meters
+//const float M_PI = 3.14159265358979323846;
+const float wheelCircumference = wheelDiameter * M_PI ; // Wheel circumference
 
-                # Write data to CSV
-                with open('SensorData.csv', mode='a', newline='') as sensor_file:
-                    sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                    sensor_writer.writerow([x, y, timestamp])
+// Robot state variables
+float x = 0.0;     // Current X position (meters)
+float y = 0.0;     // Current Y position (meters)
+float theta = 0.0; // Current orientation (radians)
 
-# Define the key press actions using the keyboard library
-def handle_keypress():
-    while True:
-        if keyboard.is_pressed('w'):  # If 'w' is pressed
-            arduino.write(b'2')
-            print("Moving forward")
-        elif keyboard.is_pressed('x'):  # If 'x' is pressed
-            arduino.write(b'3')
-            print('Moving backward')
-        elif keyboard.is_pressed('a'):  # If 'a' is pressed
-            arduino.write(b'4')
-            print("Turning left")
-        elif keyboard.is_pressed('d'):  # If 'd' is pressed
-            arduino.write(b'5')
-            print("Turning right")
-        elif keyboard.is_pressed('s'):  # If 's' is pressed
-            arduino.write(b'0')
-            print('Robot stopped')
-        elif keyboard.is_pressed('esc'):  # If ESC is pressed
-            print("Exiting...")
-            break  # Exit the loop when ESC is pressed
+// Encoder counts and speed control
+volatile int leftEnCount = 0;
+volatile int rightEnCount = 0;
+const int K = 30;  // Adjustment factor for speed control
 
-# Plot data from CSV
-def plot_data():
-    try:
-        # Load data from the CSV file
-        df = pd.read_csv('SensorData.csv')
-        x = df['x']
-        y = df['y']
+float dr;
+float dl;
 
-        # Create a plot
-        plt.figure(figsize=(8, 6))
-        
-        # Add a line connecting the points
-        plt.plot(x, y, marker='o', markersize=4, linestyle='-', color='blue', label="Path")
+unsigned long previousMillis = 0;
+const long interval = 100;
+bool isMoving = false; 
+void setup() {
+  Serial.begin(115200);
 
-        # Customize the plot
-        plt.xlabel('X Coordinate (meters)')
-        plt.ylabel('Y Coordinate (meters)')
-        plt.title('Robot Traveling Path')
-        plt.legend()
-        plt.grid(True)
-        plt.axis('equal') 
-        plt.tight_layout()
+  // Setup encoder interrupts
+  attachInterrupt(digitalPinToInterrupt(enLA), leftEnISRA, RISING);
+  attachInterrupt(digitalPinToInterrupt(enLB), leftEnISRB, RISING);
+  attachInterrupt(digitalPinToInterrupt(enRA), rightEnISRA, RISING);
+  attachInterrupt(digitalPinToInterrupt(enRB), rightEnISRB, RISING);
 
-        # Save the plot to the file
-        plot_filename = os.path.join(os.getcwd(), "robot_path_plot.png")
-        plt.savefig(plot_filename)
-        print(f"Plot saved as {plot_filename}")
+  // Set all the motor control pins to outputs
+  pinMode(enR, OUTPUT);
+  pinMode(enL, OUTPUT);
+  pinMode(inR1, OUTPUT);
+  pinMode(inR2, OUTPUT);
+  pinMode(inL1, OUTPUT);
+  pinMode(inL2, OUTPUT);
 
-    except FileNotFoundError:
-        print("SensorData.csv not found.")
-    except KeyError:
-        print("Unexpected CSV format. Ensure columns are labeled 'x' and 'y'.")
+  // Turn off motors - Initial state
+  digitalWrite(inR1, LOW);
+  digitalWrite(inR2, LOW);
+  digitalWrite(inL1, LOW);
+  digitalWrite(inL2, LOW);
+}
 
-# Start data reading thread
-read_thread = threading.Thread(target=read_data, daemon=True)
-read_thread.start()
+void loop() {
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval){
+    previousMillis = currentMillis;
+    if (isMoving){
+      calculateCoordinates();
+      printCoordinates();
+    }
+  }
+  if (Serial.available()> 0){
+    char command = Serial.read();
+    if (command == '2'){
+      moveForward();
+    }
+    else if (command == '3'){
+      moveBackward();
+    }
+    else if(command =='4'){
+      turnLeft();
+    }
+    else if(command =='5'){
+      turnRight();
+    }
+    else if(command =='0'){
+      stop();
+    }
+  }
+  delay(10);
+}
 
-# Start handling key presses
-handle_keypress()
+// Function to get the current speed of the left wheel
+float get_speedL() {
+  // Convert encoder counts to speed in m/s
+  float countsPerSecond = leftEnCount / T; // Counts per second
+  float speedRPM = (countsPerSecond * 60) / encoderCountsPerRevolution; // RPM
+  float speedMetersPerSecond = speedRPM * (wheelCircumference / 60); // m/s
+  leftEnCount = 0; // Reset count after reading
+  return speedMetersPerSecond;
+}
 
-# After exiting keypress loop, plot the data
-plot_data()
+// Function to get the current speed of the right wheel
+float get_speedR() {
+  // Convert encoder counts to speed in m/s
+  float countsPerSecond = rightEnCount / T; // Counts per second
+  float speedRPM = (countsPerSecond * 60) / encoderCountsPerRevolution; // RPM
+  float speedMetersPerSecond = speedRPM * (wheelCircumference / 60); // m/s
+  rightEnCount = 0; // Reset count after reading
+  return speedMetersPerSecond;
+}
+
+void moveForward() {
+    analogWrite(enR, 90);
+    analogWrite(enL, 80);
+    digitalWrite(inL1, HIGH);
+    digitalWrite(inL2, LOW);
+    digitalWrite(inR1, LOW);
+    digitalWrite(inR2, HIGH);
+    isMoving = true;
+}
+
+void moveBackward(){
+    analogWrite(enR, 90);
+    analogWrite(enL, 80);
+    digitalWrite(inL1, LOW);
+    digitalWrite(inL2, HIGH);
+    digitalWrite(inR1, HIGH);
+    digitalWrite(inR2, LOW);
+    isMoving = true; 
+}
+void turnLeft(){
+   analogWrite(enR, 90);
+   analogWrite(enL, 50);
+  digitalWrite(inL1, LOW);
+  digitalWrite(inL2, HIGH);
+  digitalWrite(inR1, LOW);
+  digitalWrite(inR2, HIGH);
+  isMoving = true;
+  
+}
+void turnRight() {
+  analogWrite(enR, 50);
+  analogWrite(enL, 90);
+  digitalWrite(inL1, HIGH);
+  digitalWrite(inL2, LOW);
+  digitalWrite(inR1, LOW);
+  digitalWrite(inR2, HIGH);
+  isMoving =true;
+}
+// Encoder ISR for left wheel
+void leftEnISRA() {
+  leftEnCount++;
+}
+
+void leftEnISRB() {
+  leftEnCount++;
+}
+
+// Encoder ISR for right wheel
+void rightEnISRA() {
+  rightEnCount++;
+}
+
+void rightEnISRB() {
+  rightEnCount++;
+}
+
+// Stop the motors
+void stop() {
+  digitalWrite(inR1, LOW);
+  digitalWrite(inR2, LOW);
+  digitalWrite(inL1, LOW);
+  digitalWrite(inL2, LOW);
+  isMoving = false; 
+}
+
+void calculateCoordinates(){
+//  float v1 = get_speedL();
+//  float v2 = get_speedR();
+//  x += (v1 + v2) / 2.0 * cos(theta) * T;
+//  y += (v1 + v2) / 2.0 * sin(theta) * T;
+//  theta += (v2 - v1) / d * T;
+
+  dl = float(leftEnCount)/encoderCountsPerRevolution*wheelCircumference;
+  dr = float(rightEnCount)/encoderCountsPerRevolution*wheelCircumference;
+ 
+  leftEnCount = 0;
+  rightEnCount = 0;
+
+  x += (dl + dr) / 2.0 * cos(theta);
+  y += (dl + dr) / 2.0 * sin(theta);
+  theta += (dr - dl) / d;
+
+}
+void printCoordinates() {
+  Serial.print(x);
+  Serial.print(",");
+  Serial.println(y);
+}
