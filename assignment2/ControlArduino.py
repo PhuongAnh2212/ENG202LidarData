@@ -13,7 +13,7 @@ with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
         sensor_writer.writerow(["x", "y", "timestamp"])
 
 # Initialize Arduino connection (adjust port for Ubuntu)
-arduino = serial.Serial(port='/dev/ttyUSB1', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
+arduino = serial.Serial(port='/dev/ttyUSB0', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
 time.sleep(2)
 
 # Function to extract x and y data from Arduino
