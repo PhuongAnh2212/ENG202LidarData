@@ -1,20 +1,19 @@
 import serial
 import time
-import csv
+import pandas as pd
 import threading
 import keyboard  # Import the keyboard library
-import pandas as pd
-from matplotlib import pyplot as plt
 import os
+from matplotlib import pyplot as plt
 
-# Initialize the data array that will store x, y, theta, and timestamp
-data_array = []
+# Initialize an empty DataFrame to store x, y, theta, timestamp
+data_df = pd.DataFrame(columns=["x", "y", "theta", "timestamp"])
 
 # Initialize Arduino connection (adjust port for Ubuntu)
 arduino = serial.Serial(port='/dev/ttyUSB1', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
 time.sleep(2)
 
-# Function to extract x and y data from Arduino
+# Function to extract x, y, theta from the received data
 def extract_data(data):
     try: 
         x, y, theta = data.split(",")
@@ -23,12 +22,11 @@ def extract_data(data):
         print("Invalid data received")
         return None, None, None 
 
-# Read data from Arduino and store it in an array
+# Read data from Arduino and store it in the DataFrame
 def read_data(): 
     while True: 
         data = arduino.readline()  # Read raw data from Arduino
-        print(f"Raw data type: {type(data)}")  # This should print <class 'bytes'>
-        data = arduino.readline().decode('UTF-8').strip()
+        data = data.decode('UTF-8').strip()
             
         if data: 
             x, y, theta = extract_data(data)
@@ -36,8 +34,9 @@ def read_data():
                 timestamp = time.asctime()
                 print(f"Logged data: x = {x}, y = {y}, theta = {theta}, Timestamp = {timestamp}")
                 
-                # Store the data in the array (no writing to CSV yet)
-                data_array.append([x, y, theta, timestamp])
+                # Append data to the DataFrame
+                global data_df
+                data_df = data_df.append({"x": x, "y": y, "theta": theta, "timestamp": timestamp}, ignore_index=True)
 
 # Define the key press actions using the keyboard library
 def handle_keypress():
@@ -59,17 +58,17 @@ def handle_keypress():
             print('Robot stopped')
         elif keyboard.is_pressed('esc'):  # If ESC is pressed
             print("Exiting...")
+            save_to_csv()
             break  # Exit the loop when ESC is pressed
 
 # Write the collected data to CSV after pressing ESC
 def save_to_csv():
-    with open('SensorData.csv', mode='a', newline='') as sensor_file:
-        sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        sensor_writer.writerow(["x", "y", "theta", "timestamp"])  # Write header
-        # Write each row of collected data
-        for row in data_array:
-            sensor_writer.writerow(row)
-    print(f"Data saved to 'SensorData.csv'")
+    # Check if the DataFrame is empty, and write data to CSV
+    if not data_df.empty:
+        data_df.to_csv('SensorData.csv', mode='a', header=not os.path.exists('SensorData.csv'), index=False)
+        print(f"Data saved to 'SensorData.csv'")
+    else:
+        print("No data to save.")
 
 # Plot data from CSV
 def plot_data():
@@ -112,7 +111,6 @@ read_thread.start()
 handle_keypress()
 
 # Once ESC is pressed, save the data to CSV
-save_to_csv()
 
 # After saving the data, plot the data
 plot_data()
