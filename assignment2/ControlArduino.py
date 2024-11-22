@@ -10,7 +10,7 @@ import os
 # Create CSV file and add headers
 with open('SensorData.csv', mode = 'a', newline='') as sensor_file:
         sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-        sensor_writer.writerow(["x", "y", "timestamp"])
+        sensor_writer.writerow(["x", "y", "theta", "timestamp"])
 
 # Initialize Arduino connection (adjust port for Ubuntu)
 arduino = serial.Serial(port='/dev/ttyUSB1', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
@@ -19,11 +19,11 @@ time.sleep(2)
 # Function to extract x and y data from Arduino
 def extract_data(data):
     try: 
-        x, y = data.split(",")
-        return float(x), float(y)
+        x, y, theta = data.split(",")
+        return float(x), float(y), float(theta)
     except ValueError: 
           print("Invalid data received")
-          return None, None 
+          return None, None, None 
 
 # Read data from Arduino and log to CSV
 def read_data(): 
@@ -34,15 +34,15 @@ def read_data():
         data = arduino.readline().decode('UTF-8').strip()
             
         if data: 
-            x, y = extract_data(data)
+            x, y, theta = extract_data(data)
             if x is not None and y is not None: 
                 timestamp = time.asctime()
-                print(f"Logged data: x = {x}, y = {y}, Timestamp = {timestamp}")
+                print(f"Logged data: x = {x}, y = {y}, theta = {theta}, Timestamp = {timestamp}")
 
                 # Write data to CSV
                 with open('SensorData.csv', mode='a', newline='') as sensor_file:
                     sensor_writer = csv.writer(sensor_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-                    sensor_writer.writerow([x, y, timestamp])
+                    sensor_writer.writerow([x, y, theta, timestamp])
 
 # Define the key press actions using the keyboard library
 def handle_keypress():
@@ -75,7 +75,7 @@ def plot_data():
         y = df['y']
 
         # Create a plot
-        plt.figure(figsize=(8, 6))
+        plt.figure(figsize=(8, 8))
         
         # Add a line connecting the points
         plt.plot(x, y, marker='o', markersize=4, linestyle='-', color='blue', label="Path")
