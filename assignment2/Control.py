@@ -34,7 +34,7 @@ def read_data():
                 timestamp = time.asctime()
                 print(f"Logged data: x = {x}, y = {y}, theta = {theta}, Timestamp = {timestamp}")
                 
-                global data_x, data_y, time
+                global data_x, data_y, data_time
                 data_x.append(x)
                 data_y.append(y)
                 data_time.append(timestamp)
