@@ -7,7 +7,7 @@ import os
 from matplotlib import pyplot as plt
 
 # Initialize an empty DataFrame to store x, y, theta, timestamp
-data_df = pd.DataFrame(columns=["x", "y", "theta", "timestamp"])
+data_x, data_y, data_time = [],[],[]
 
 # Initialize Arduino connection (adjust port for Ubuntu)
 arduino = serial.Serial(port='/dev/ttyUSB1', baudrate=115200, timeout=1)  # Ubuntu uses /dev/ttyUSB* or /dev/ttyACM*
@@ -34,9 +34,10 @@ def read_data():
                 timestamp = time.asctime()
                 print(f"Logged data: x = {x}, y = {y}, theta = {theta}, Timestamp = {timestamp}")
                 
-                # Append data to the DataFrame
-                global data_df
-                data_df = data_df.append({"x": x, "y": y, "theta": theta, "timestamp": timestamp}, ignore_index=True)
+                global data_x, data_y, time
+                data_x.append(x)
+                data_y.append(y)
+                data_time.append(timestamp)
 
 # Define the key press actions using the keyboard library
 def handle_keypress():
@@ -63,9 +64,17 @@ def handle_keypress():
 
 # Write the collected data to CSV after pressing ESC
 def save_to_csv():
-    # Check if the DataFrame is empty, and write data to CSV
-    if not data_df.empty:
-        data_df.to_csv('SensorData.csv', mode='a', header=not os.path.exists('SensorData.csv'), index=False)
+    # Check if there's data to save
+    if data_x and data_y and data_time:
+        # Create a DataFrame from the collected data
+        df = pd.DataFrame({
+            'x': data_x,
+            'y': data_y,
+            'timestamp': data_time  # Timestamp is being stored here, change to `time` if you'd like
+        })
+        
+        # Write the DataFrame to a CSV file
+        df.to_csv('SensorData.csv', mode='a', header=not os.path.exists('SensorData.csv'), index=False)
         print(f"Data saved to 'SensorData.csv'")
     else:
         print("No data to save.")
