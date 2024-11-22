@@ -74,7 +74,7 @@ def save_to_csv():
         })
         
         # Write the DataFrame to a CSV file
-        df.to_csv('SensorData.csv', mode='a', header=not os.path.exists('SensorData.csv'), index=False)
+        df.to_csv('SensorData_nhomGiang.csv', mode='a', header=not os.path.exists('SensorData_nhomGiang.csv'), index=False)
         print(f"Data saved to 'SensorData.csv'")
     else:
         print("No data to save.")
@@ -83,7 +83,7 @@ def save_to_csv():
 def plot_data():
     try:
         # Load data from the CSV file
-        df = pd.read_csv('SensorData.csv')
+        df = pd.read_csv('SensorData_nhomGiang.csv')
         x = df['x']
         y = df['y']
 
@@ -103,7 +103,7 @@ def plot_data():
         plt.tight_layout()
 
         # Save the plot to the file
-        plot_filename = os.path.join(os.getcwd(), "robot_path_plot.png")
+        plot_filename = os.path.join(os.getcwd(), "robot_path_plot_nhom_Giang.png")
         plt.savefig(plot_filename)
         print(f"Plot saved as {plot_filename}")
 
